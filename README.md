@@ -1,52 +1,53 @@
 # MultiSpan
 
-**混合分辨率多屏壁纸等比裁切工具** —— 让一张壁纸横跨多台不同尺寸/分辨率的显示器，接缝对齐。
+[中文说明](README.zh-CN.md) | English
 
-双 4K + 1080P 混搭、27 寸 + 24.5 寸混搭……Windows 自带的"跨屏拉伸"只会把图按像素硬拉开，物理尺寸不一样的屏幕接缝永远对不上。MultiSpan 按每台显示器的**物理尺寸**计算等比裁切窗口，让画面跨屏时比例一致、屋檐和文字严丝合缝。
+**Equal-scale wallpaper splitter for mixed-resolution multi-monitor setups** — span one wallpaper across multiple monitors of different sizes/resolutions, with seams that actually line up.
 
-![screenshot](docs/screenshot.png)
+Running one image across a 4K + 1080P dual-monitor setup? Windows' built-in "Span" just stretches pixels, and because the monitors have different pixel densities, the image never lines up at the seam. MultiSpan reads the **physical size** of each monitor (via EDID) and computes an equal-scale crop window per screen, so the picture stays geometrically continuous across displays.
 
-## 功能
+## Features
 
-- **两步向导**：① 自动检测全部显示器（分辨率 / 物理尺寸 / 排列位置），可视化方框，尺寸识别错可手动改，方框可**拖拽微调**对齐，双击复位；② 拖入素材，一键裁切
-- **等比裁切数学**：按显示器物理密度（像素/厘米）计算每屏裁切窗口，混合分辨率下画面依然连续
-- **支持图片 / GIF / 视频**：传什么默认输出什么，静态图与动图可互相勾选
-- **产物按方位命名**：`wallpaper_左屏.png`、`wallpaper_右屏.png`……设置壁纸时不用猜
-- **配置档案**：显示器方案可保存多套，换素材不用重调
-- **Wallpaper Engine 壁纸支持**：直接拖入 WE 的壁纸文件夹（图片/GIF/视频），`.pkg` 私有包走**录屏法**兜底
-- **全程本地处理**：无网络上传、无账号、无遥测
+- **Two-step wizard**: auto-detects all monitors (resolution / physical size / arrangement), visual layout boxes with editable dimensions, **drag-to-adjust** alignment, double-click to reset
+- **Physical-scale cropping math**: crop windows are computed from pixel-per-cm density, so the image remains continuous even across mixed resolutions
+- **Image / GIF / video support**: input format is the default output; static and animated outputs are freely selectable
+- **Output files named by position**: `wallpaper_left.png`, `wallpaper_right.png`… no guessing when you set wallpapers
+- **Monitor profiles**: save multiple monitor setups, reload anytime
+- **Wallpaper Engine support**: drop in a WE wallpaper folder (image/GIF/video); private `.pkg` wallpapers fall back to a screen-recording method
+- **Fully local**: no uploads, no accounts, no telemetry
 
-## 下载
+## Download
 
-| 渠道 | 链接 |
+| Channel | Link |
 |---|---|
 | GitHub Releases | https://github.com/unable616-hub/MultiSpan/releases/latest |
-| 夸克网盘 | （发布时填入分享链接） |
 
-单个 exe（约 48 MB），**免安装、免依赖**——ffmpeg 已内置。
+Single portable exe (~48 MB), **no installation, no dependencies** — ffmpeg is bundled.
 
-## 使用
+## Usage
 
-1. 双击 `MultiSpan.exe` → 自动检测显示器
-2. 核对方框（尺寸不对就改数字，位置不齐就拖动），保存为档案
-3. 下一步 → 拖入素材 → 开始处理
-4. 打开输出文件夹，把各屏文件在 Windows 设置里分别设为对应显示器的壁纸
+1. Double-click `MultiSpan.exe` → monitors are detected automatically
+2. Verify the layout boxes (fix the numbers if detection is off, drag to fine-tune), save as a profile
+3. Next step → drop in your media → Process
+4. Open the output folder and set each file as its monitor's wallpaper
 
-> 首次运行如遇 SmartScreen / 杀毒提示，点「更多信息 → 仍要运行」即可（软件未做代码签名，属正常提示）。
+> First launch may trigger a SmartScreen / antivirus warning — this is normal for unsigned software. Click "More info → Run anyway".
 
-## 卸载
+## Uninstall
 
-**删除 exe 即卸载，无残留。** 运行数据只在 `%LocalAppData%\MultiSpan`（配置档案、日志），想清干净就删掉这个文件夹。不写注册表、不装服务。
+**Delete the exe — that's it.** Runtime data lives only in `%LocalAppData%\MultiSpan` (profiles, logs); remove the folder to wipe everything. No registry entries, no services.
 
-## 已知限制
+## Known Limitations
 
-- 产物画质取决于原素材——混合分辨率下，低分屏一侧实际使用的裁切窗口较小，放大后细节有损（数学上不可避免）
-- `.pkg` 壁纸为 Wallpaper Engine 私有格式，走录屏法还原，动态效果以录屏为准
-- 需要显示器以底边/顶边对齐（横排）；竖排堆叠场景未做适配
+- Output quality is bounded by the source image — the crop window on the lower-resolution screen uses fewer pixels and will lose detail when scaled (mathematically unavoidable)
+- `.pkg` wallpapers are Wallpaper Engine's private format; the recording method reproduces the animation as recorded
+- Monitors should be aligned edge-to-edge in a horizontal row; vertical stacking is not supported yet
 
-## 技术栈
+## Tech Stack
 
-Python 标准库 HTTP 服务 + Pillow + ffmpeg（imageio-ffmpeg）+ pywebview 原生窗口，PyInstaller 打包单文件。
+Python stdlib HTTP server + Pillow + ffmpeg (imageio-ffmpeg) + pywebview, packaged with PyInstaller.
+
+> **Disclaimer:** This project was built with AI assistance (code, docs and packaging). It is free, works fully offline, and collects no data.
 
 ---
 
