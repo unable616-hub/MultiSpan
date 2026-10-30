@@ -1,0 +1,9 @@
+build/
+dist/
+out/
+uploads/
+release/
+config.json
+__pycache__/
+*.zip
+*.spec.bak

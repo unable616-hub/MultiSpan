@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MultiSpan - 混合分辨率多屏壁纸裁切</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1a1f27; --sub:#6b7280; --line:#e5e7eb;
+          --accent:#2563eb; --ok:#059669; --err:#dc2626; --warn:#d97706; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--ink); padding:24px; }
+  .wrap { max-width:980px; margin:0 auto; }
+  h1 { font-size:22px; }
+  .sub { color:var(--sub); font-size:13px; margin:4px 0 18px; line-height:1.6; }
+
+  .steps { display:flex; gap:0; margin-bottom:18px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .steps .step { flex:1; padding:11px; text-align:center; background:#fff; font-size:14px; color:var(--sub); cursor:pointer; user-select:none; }
+  .steps .step.active { background:var(--accent); color:#fff; font-weight:600; }
+  .steps .step.done { color:var(--ok); }
+  .steps .step .n { display:inline-block; width:20px; height:20px; border-radius:50%; background:#e5e7eb; color:var(--sub);
+                    font-size:12px; line-height:20px; margin-right:6px; }
+  .steps .step.active .n { background:#fff; color:var(--accent); }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin-bottom:12px; }
+  button.primary { padding:10px 22px; border:none; border-radius:8px; background:var(--accent); color:#fff;
+                   font-size:14px; font-weight:600; cursor:pointer; }
+  button.primary:disabled { background:#b6c3da; cursor:not-allowed; }
+  button.ghost { padding:7px 14px; border:1px solid var(--line); background:#fff; border-radius:6px;
+                 font-size:12px; cursor:pointer; color:var(--ink); }
+  button.ghost:hover { border-color:var(--accent); color:var(--accent); }
+  button.danger { border:1px solid #fecaca; background:#fff; color:var(--err); border-radius:6px;
+                  padding:5px 10px; font-size:12px; cursor:pointer; }
+  input[type=text], input[type=number] { padding:6px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+  .note { font-size:12px; color:var(--sub); line-height:1.7; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid #c7d4ea; border-top-color:var(--accent);
+          border-radius:50%; animation:sp .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  #status { font-size:13px; min-height:18px; margin-top:10px; }
+  .ok { color:var(--ok); } .err { color:var(--err); } .warn { color:var(--warn); }
+
+  #monCanvas { position:relative; width:100%; height:300px; background:#eef1f5; border-radius:8px; overflow:hidden; }
+  .mbox { position:absolute; border:2px solid var(--accent); background:#fff; border-radius:4px;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+          font-size:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); cursor:grab; user-select:none; }
+  .mbox input { cursor:auto; }
+  .mbox .badge { font-size:11px; font-weight:700; color:var(--accent); }
+  .mbox .badge.primary { color:var(--ok); }
+  .mbox .mini { color:var(--sub); font-size:10px; }
+  .mbox input { width:52px; padding:2px 4px; font-size:11px; text-align:center; border:1px solid var(--line); border-radius:4px; }
+  .mbox .row { display:flex; gap:4px; align-items:center; }
+  .mbox .lbl { font-size:10px; color:var(--sub); }
+
+  #drop { border:2px dashed #c3cad6; border-radius:10px; padding:34px; text-align:center; color:var(--sub);
+          cursor:pointer; transition:all .15s; }
+  #drop.hover { border-color:var(--accent); background:#eff6ff; color:var(--accent); }
+  #drop b { color:var(--accent); }
+  .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:13px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { border:none; background:#fff; padding:7px 14px; cursor:pointer; font-size:13px; color:var(--sub); }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .checks { display:flex; gap:20px; font-size:13px; margin-top:10px; }
+  .checks label { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .checks input { width:15px; height:15px; accent-color:var(--accent); }
+  .result .item { margin-bottom:14px; }
+  .result .item .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:10px; margin-left:8px; }
+  .tag.dyn { background:#eff6ff; color:var(--accent); } .tag.sta { background:#f0fdf4; color:var(--ok); }
+  .result img, .result video { max-width:100%; max-height:280px; border-radius:8px; border:1px solid var(--line); display:block; }
+  .result a { color:var(--accent); text-decoration:none; font-weight:600; }
+  .prof { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  select { padding:6px 10px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex; align-items:baseline; gap:10px;">
+    <h1>MultiSpan</h1>
+    <span id="verInfo" style="font-size:12px; color:var(--sub); cursor:pointer;" title="点击检查更新">v…</span>
+  </div>
+  <div class="sub">混合分辨率多屏壁纸等比裁切 —— 按显示器物理尺寸精确分屏，接缝对齐。全程本地处理，不上传网络。</div>
+  <div id="updBanner" style="display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:9px 14px; margin:-6px 0 14px; font-size:13px;">
+    发现新版本 <b id="updVer"></b> —— <a href="#" id="updLink" style="color:var(--accent);">前往下载页</a><span style="color:var(--sub);">（下载后替换旧 exe 即可）</span>
+  </div>
+
+  <div class="steps">
+    <div class="step active" id="stepTab1"><span class="n">1</span>显示器配置</div>
+    <div class="step" id="stepTab2"><span class="n">2</span>选择素材与裁切</div>
+  </div>
+
+  <!-- ================= 步骤 1 ================= -->
+  <div id="page1">
+    <div class="card">
+      <h2>显示器布局
+        <button class="ghost" id="detect" style="float:right">重新检测</button>
+      </h2>
+      <div id="monCanvas"><div class="note" style="padding:20px">检测中…</div></div>
+      <div id="monHint" class="note" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>配置档案</h2>
+      <div class="prof">
+        <select id="profSelect"><option value="">— 选择已保存的配置 —</option></select>
+        <button class="ghost" id="profLoad">载入</button>
+        <button class="danger" id="profDel">删除所选</button>
+        <input type="text" id="profName" placeholder="配置名称，如：书房双屏" style="width:160px">
+        <button class="ghost" id="profSave">保存当前为配置</button>
+        <span class="note">载入时按「分辨率+桌面位置」自动匹配显示器；对不上的屏会标红提示。</span>
+      </div>
+    </div>
+
+    <div style="text-align:right">
+      <button class="primary" id="nextBtn" disabled>下一步：选择素材 →</button>
+    </div>
+  </div>
+
+  <!-- ================= 步骤 2 ================= -->
+  <div id="page2" style="display:none">
+    <div class="card">
+      <h2>选择素材（三种方式任选）</h2>
+      <div id="drop">拖入 <b>图片 / GIF / 视频 / WE 壁纸文件夹</b>，或点击选择文件</div>
+      <input type="file" id="file" accept="image/*,video/*,.gif" style="display:none">
+      <div class="row" style="margin-top:10px">
+        <span class="note">或粘贴 WE 壁纸文件夹路径：</span>
+        <input type="text" id="pathInput" placeholder="E:\SteamLibrary\steamapps\workshop\content\431960\<壁纸ID>"
+               style="flex:1;font-size:12px">
+        <button class="ghost" id="importBtn">导入</button>
+      </div>
+      <div id="fileInfo" class="note" style="display:none;margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="recordCard" style="display:none">
+      <h2>场景壁纸（.pkg）→ 录制模式</h2>
+      <div class="note" style="margin-top:0">
+        pkg 是 Wallpaper Engine 私有场景格式，无法直接裁切。把该壁纸应用到某块屏上播放，在这里录制那块屏，
+        动画 1:1 保留。<b>录制时不要动鼠标，不要把本窗口放在被录的屏幕上。</b>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span>录制屏幕：</span><div class="seg" id="recMonSeg"></div>
+        <span>时长：</span>
+        <div class="seg" id="recDurSeg">
+          <button data-v="10">10 秒</button><button data-v="20" class="on">20 秒</button><button data-v="30">30 秒</button>
+        </div>
+        <button id="recBtn" style="padding:8px 20px;border:none;border-radius:8px;background:var(--err);color:#fff;cursor:pointer;font-size:13px;font-weight:600">● 录制并裁切</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>裁切与输出</h2>
+      <div class="row">
+        <span>画面适配：</span>
+        <div class="seg" id="modeSeg">
+          <button data-v="cover" class="on">铺满（裁掉超出部分，推荐）</button>
+          <button data-v="fit">完整显示</button>
+        </div>
+      </div>
+      <div class="checks" id="outChecks" style="display:none">
+        <label><input type="checkbox" id="optDynamic"> 动态壁纸（mp4，给 Wallpaper Engine / Lively）</label>
+        <label><input type="checkbox" id="optStatic"> 静态图（png，Windows 原生右键即可设置）</label>
+      </div>
+      <div class="note" id="outHint"></div>
+      <div class="row" style="margin-top:12px">
+        <span class="note">产出位置：</span>
+        <input type="text" id="outDirInput" placeholder="默认：素材旁 multispan-output\ 文件夹（留空即可）" style="flex:1;font-size:12px">
+      </div>
+    </div>
+
+    <button class="primary" id="go" disabled style="width:100%;padding:13px;font-size:15px">开始裁切</button>
+    <div id="status"></div>
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let mode = "cover", monitors = [], srcFile = null, srcPath = null;
+let recMon = 1, recDur = 20;
+let currentProfileId = null;
+
+/* ---------------- 步骤切换 ---------------- */
+function showStep(n) {
+  $("#page1").style.display = n === 1 ? "block" : "none";
+  $("#page2").style.display = n === 2 ? "block" : "none";
+  $("#stepTab1").className = "step" + (n === 1 ? " active" : " done");
+  $("#stepTab2").className = "step" + (n === 2 ? " active" : "");
+}
+$("#stepTab1").onclick = () => showStep(1);
+$("#stepTab2").onclick = () => { if (monitors.length >= 2) showStep(2); };
+$("#nextBtn").onclick = () => showStep(2);
+
+/* ---------------- 状态提示 ---------------- */
+function setStatus(html, cls) { const st = $("#status"); st.className = cls || ""; st.innerHTML = html; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------------- 步骤1：检测 + 画布 ---------------- */
+function physSize(w, h, diag) {
+  const d = Math.hypot(w, h);
+  const k = diag * 2.54 / d;
+  return { pw: w * k, ph: h * k };
+}
+
+async function detect(quiet) {
+  if (!quiet) $("#monCanvas").innerHTML = '<div class="note" style="padding:20px"><span class="spin"></span>检测显示器位置中…</div>';
+  try {
+    const [r1] = await Promise.all([fetch("/api/monitors"), sleep(350)]);
+    if (!quiet) $("#monCanvas").innerHTML = '<div class="note" style="padding:20px"><span class="spin"></span>读取分辨率与刷新率中…</div>';
+    const d = await r1.json();
+    await sleep(300);
+    monitors = d.monitors;
+    if (monitors.length < 2) {
+      $("#monCanvas").innerHTML = '<div class="note" style="padding:20px;color:var(--err)">只检测到 1 台显示器，多屏裁切至少需要两台。接好屏幕后点「重新检测」。</div>';
+      $("#nextBtn").disabled = true; return;
+    }
+    // 对角线默认值：优先 EDID 固件数据，其次沿用旧值，最后 27
+    monitors.forEach(m => { if (!m.diag) m.diag = m.diag_edid || 27; });
+    renderCanvas();
+    buildRecMonSeg();
+    $("#nextBtn").disabled = false;
+    const edidOk = monitors.filter(m => m.diag_edid).length;
+    $("#monHint").textContent = "方框大小按显示器物理尺寸等比绘制，摆放与 Windows 桌面一致。" +
+      (edidOk ? `对角线已从 ${edidOk} 台显示器的固件（EDID）自动读取。` : "未读到 EDID 物理尺寸，对角线需手动确认。") +
+      "框内数据可直接修改；上下拖动方框可手动调整对齐方式（顶端/居中/任意错位），双击方框恢复 Windows 自动对齐。";
+  } catch (e) {
+    $("#monCanvas").innerHTML = '<div class="note" style="padding:20px;color:var(--err)">检测失败: ' + e.message + "</div>";
+  }
+}
+
+function renderCanvas() {
+  const cv = $("#monCanvas");
+  const ref = monitors[0];
+  const refBottom = ref.y + ref.height;
+  const phys = monitors.map(m => ({ ...m, ...physSize(m.width, m.height, m.diag || 27) }));
+  const canvasH = Math.max(...phys.map(p => p.ph));
+  let x = 0;
+  phys.forEach(p => {
+    if (p.y === ref.y) p.cy = 0;
+    else if (p.y + p.height === refBottom) p.cy = canvasH - p.ph;
+    else p.cy = Math.max(0, Math.min((p.y - ref.y) / (p.width / (p.pw / 2.54)) * 2.54, canvasH - p.ph));
+    p.cx = x; x += p.pw;
+  });
+  const canvasW = x;
+  const pad = 16;
+  const scale = Math.min((cv.clientWidth - pad * 2) / canvasW, (cv.clientHeight - pad * 2) / canvasH);
+  const offX = pad + (cv.clientWidth - pad * 2 - canvasW * scale) / 2;
+  const offY = pad + (cv.clientHeight - pad * 2 - canvasH * scale) / 2;
+  window.__canvasGeo = { scale, offY, canvasH, phys, cv };
+  cv.innerHTML = phys.map((p, i) => {
+    const sh = monitors[i].shift_cm || 0;
+    const disp = Math.max(0, Math.min(p.cy + sh, canvasH - p.ph));
+    return `
+    <div class="mbox" data-mi="${i}" style="left:${offX + p.cx * scale}px; top:${offY + disp * scale}px;
+         width:${p.pw * scale}px; height:${p.ph * scale}px;">
+      <span class="badge ${p.primary ? "primary" : ""}">屏幕 ${p.index}${p.primary ? " · 主屏" : ""}</span>
+      <div class="row"><span class="lbl">分辨率</span>
+        <input type="number" data-w="${p.index}" value="${p.width}" min="640" max="7680"> ×
+        <input type="number" data-h="${p.index}" value="${p.height}" min="480" max="4320"></div>
+      <div class="row"><span class="lbl">对角线</span>
+        <input type="number" data-diag="${p.index}" value="${p.diag || 27}" step="0.1" min="10" max="100"> 英寸
+        <span class="lbl">微调</span>
+        <input type="number" data-shift="${p.index}" value="${sh}" step="0.1" min="-30" max="30"> cm</div>
+      ${sh ? `<div class="mini">手动偏移 ${sh > 0 ? "+" : ""}${sh} cm · 双击方框复位</div>` : `<div class="mini">上下拖动调整对齐 · 双击复位</div>`}
+    </div>`;
+  }).join("");
+  cv.querySelectorAll("input").forEach(inp => {
+    inp.onchange = () => {
+      const idx = parseInt(inp.dataset.w || inp.dataset.h || inp.dataset.diag || inp.dataset.shift);
+      const m = monitors.find(mm => mm.index === idx);
+      if (inp.dataset.w) m.width = parseInt(inp.value) || m.width;
+      if (inp.dataset.h) m.height = parseInt(inp.value) || m.height;
+      if (inp.dataset.diag) m.diag = parseFloat(inp.value) || 27;
+      if (inp.dataset.shift) m.shift_cm = parseFloat(inp.value) || 0;
+      renderCanvas();   // 数据变了就按新物理尺寸重绘方框
+    };
+  });
+  cv.querySelectorAll(".mbox").forEach(box => {
+    const mi = parseInt(box.dataset.mi);
+    box.onmousedown = e => {
+      if (e.target.tagName === "INPUT") return;
+      e.preventDefault();
+      drag = { mi, startY: e.clientY, base: monitors[mi].shift_cm || 0, box };
+      box.style.cursor = "grabbing";
+    };
+    box.ondblclick = () => {
+      monitors[mi].shift_cm = 0;
+      renderCanvas();
+    };
+  });
+}
+
+/* ---------- 方框拖拽（调整对齐） ---------- */
+let drag = null;
+window.addEventListener("mousemove", e => {
+  if (!drag) return;
+  const g = window.__canvasGeo; if (!g) return;
+  const dyCm = (e.clientY - drag.startY) / g.scale;
+  const m = monitors[drag.mi], p = g.phys[drag.mi];
+  m["shift_cm"] = Math.round(Math.max(-30, Math.min(30, drag.base + dyCm)) * 10) / 10;
+  const disp = Math.max(0, Math.min(p.cy + m.shift_cm, g.canvasH - p.ph));
+  drag.box.style.top = (g.offY + disp * g.scale) + "px";
+});
+window.addEventListener("mouseup", () => {
+  if (!drag) return;
+  drag = null;
+  renderCanvas();
+});
+$("#detect").onclick = () => detect(false);
+
+function collectMonitors() {
+  return monitors.map(m => ({
+    width: m.width, height: m.height, x: m.x, y: m.y,
+    diag: m.diag || 27, shift_cm: m.shift_cm || 0
+  }));
+}
+
+/* ---------------- 配置档案 ---------------- */
+async function refreshProfiles() {
+  const d = await (await fetch("/api/config")).json();
+  const sel = $("#profSelect");
+  sel.innerHTML = '<option value="">— 选择已保存的配置 —</option>' +
+    d.profiles.map(p => `<option value="${p.id}">${p.name}（${p.saved_at}）</option>`).join("");
+  return d;
+}
+$("#profSave").onclick = async () => {
+  const name = $("#profName").value.trim();
+  if (!name) { setStatus("请先给配置起个名字", "err"); return; }
+  const r = await fetch("/api/config", { method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "save", profile: {name, monitors: collectMonitors()}}) });
+  const d = await r.json();
+  if (d.ok) { currentProfileId = d.id; await refreshProfiles(); $("#profSelect").value = d.id;
+    setStatus(`配置「${name}」已保存`, "ok"); }
+  else setStatus(d.error, "err");
+};
+$("#profLoad").onclick = async () => {
+  const id = $("#profSelect").value;
+  if (!id) return;
+  const d = await (await fetch("/api/config")).json();
+  const prof = d.profiles.find(p => p.id === id);
+  if (!prof) return;
+  let matched = 0, missed = [];
+  for (const pm of prof.monitors) {
+    const m = monitors.find(mm => mm.width === pm.width && mm.height === pm.height && mm.x === pm.x && mm.y === pm.y);
+    if (m) { m.diag = pm.diag; m.shift_cm = pm.shift_cm || 0; matched++; }
+    else missed.push(`${pm.width}×${pm.height}`);
+  }
+  renderCanvas();
+  await fetch("/api/config", { method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "set_last", id}) });
+  currentProfileId = id;
+  if (missed.length) setStatus(`配置已载入：${matched} 台屏匹配，${missed.length} 台没对上（${missed.join("、")}）——请检查框内数据`, "warn");
+  else setStatus(`配置「${prof.name}」已载入，全部显示器匹配`, "ok");
+};
+$("#profDel").onclick = async () => {
+  const id = $("#profSelect").value;
+  if (!id) return;
+  await fetch("/api/config", { method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "delete", id}) });
+  await refreshProfiles();
+  setStatus("已删除", "ok");
+};
+
+/* ---------------- 步骤2：素材 ---------------- */
+const drop = $("#drop"), fileInput = $("#file");
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("hover"); };
+drop.ondragleave = () => drop.classList.remove("hover");
+drop.ondrop = async e => {
+  e.preventDefault(); drop.classList.remove("hover");
+  const entries = [...(e.dataTransfer.items || [])]
+    .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  const dir = entries.find(en => en.isDirectory);
+  if (dir) {
+    setStatus('<span class="spin"></span>读取壁纸文件夹…');
+    try {
+      const f = await findWallpaperFile(dir);
+      setFile(f);
+    } catch (err) { setStatus(err.message, "err"); }
+    return;
+  }
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+};
+fileInput.onchange = () => { if (fileInput.files[0]) setFile(fileInput.files[0]); };
+
+async function findWallpaperFile(dirEntry) {
+  const reader = dirEntry.createReader();
+  const entries = await new Promise((res, rej) => reader.readEntries(es => res(es), rej));
+  let proj = null;
+  for (const en of entries)
+    if (en.isFile && en.name === "project.json")
+      proj = await new Promise((res, rej) => en.file(res, rej));
+  if (!proj) throw new Error("文件夹里没有 project.json（不是 WE 壁纸文件夹）");
+  const projJson = JSON.parse(await proj.text());
+  const entryName = projJson.file || "";
+  for (const en of entries)
+    if (en.isFile && en.name === entryName)
+      return await new Promise((res, rej) => en.file(res, rej));
+  throw new Error("本体文件没找到: " + entryName);
+}
+
+function isAnimatedName(n) { return /\.(gif|mp4|webm|mov|avi|mkv)$/i.test(n); }
+
+function setFile(f) {
+  srcFile = f; srcPath = null;
+  applyImported(f.name, f.size, "已选");
+}
+function applyImported(name, size, note) {
+  $("#fileInfo").style.display = "block";
+  const anim = isAnimatedName(name), pkg = /\.pkg$/i.test(name);
+  $("#fileInfo").innerHTML = (note ? note + "：" : "") + "<b>" + name + "</b>" +
+    (size ? "（" + (size/1048576).toFixed(1) + " MB）" : "");
+  $("#outChecks").style.display = "flex";
+  $("#optDynamic").checked = anim && !pkg;
+  $("#optStatic").checked = !anim || pkg;
+  $("#optDynamic").disabled = !anim || pkg;
+  $("#outHint").textContent = pkg
+    ? "⚠ pkg 场景壁纸不能直接裁切——请用下方录制模式。"
+    : anim ? "动图/视频素材：默认输出动态壁纸，可同时勾选静态图（自动取中间帧）。"
+           : "静态图片：只能输出静态图（图片没有时间维度，无法变动态）。";
+  $("#recordCard").style.display = pkg ? "block" : "none";
+  updateGo();
+}
+
+$("#importBtn").onclick = async () => {
+  const p = $("#pathInput").value.trim();
+  if (!p) return;
+  setStatus('<span class="spin"></span>导入中…');
+  try {
+    const r = await fetch("/api/import", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({path: p}) });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    srcPath = d.path; srcFile = null;
+    applyImported(d.entry + (d.title ? "（" + d.title + "）" : ""), null, "已导入本体");
+    if (d.kind === "pkg" || d.kind === "web")
+      setStatus(`该壁纸是${d.kind === "pkg" ? " pkg 场景" : "网页"}类型，不能直接裁切，请用录制模式。`, "warn");
+    else setStatus(`导入成功（${d.kind}），可直接裁切。`, "ok");
+  } catch (e) { setStatus(e.message, "err"); }
+};
+
+/* ---------------- 录制 ---------------- */
+function buildRecMonSeg() {
+  $("#recMonSeg").innerHTML = monitors.map(m =>
+    `<button data-v="${m.index}" class="${m.index === recMon ? "on" : ""}">屏幕 ${m.index}</button>`).join("");
+  $("#recMonSeg").querySelectorAll("button").forEach(b => b.onclick = () => {
+    recMon = parseInt(b.dataset.v);
+    $("#recMonSeg").querySelectorAll("button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+  });
+}
+$("#recDurSeg").querySelectorAll("button").forEach(b => b.onclick = () => {
+  recDur = parseInt(b.dataset.v);
+  $("#recDurSeg").querySelectorAll("button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+});
+$("#recBtn").onclick = async () => {
+  $("#recBtn").disabled = true;
+  let prep = 3;
+  setStatus(`<span class="spin"></span>${prep} 秒后开始录制——请确认该屏幕正在播放壁纸，鼠标不要动…`);
+  while (prep > 0) { await sleep(1000); prep--; setStatus(`<span class="spin"></span>${prep} 秒后开始录制…`); }
+  let left = recDur;
+  setStatus(`<span class="spin"></span>录制中，剩 ${left} 秒…`);
+  const timer = setInterval(() => { left -= 1; if (left > 0) setStatus(`<span class="spin"></span>录制中，剩 ${left} 秒…`); }, 1000);
+  try {
+    await runCrop({ monitor: recMon, seconds: recDur }, "/api/record_process");
+  } finally { clearInterval(timer); $("#recBtn").disabled = false; }
+};
+
+/* ---------------- 裁切 ---------------- */
+$("#modeSeg").querySelectorAll("button").forEach(b => b.onclick = () => {
+  $("#modeSeg").querySelectorAll("button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); mode = b.dataset.v;
+});
+function updateGo() { $("#go").disabled = (!srcFile && !srcPath) || monitors.length < 2; }
+
+async function runCrop(extraCfg, endpoint = "/api/process") {
+  $("#go").disabled = true;
+  $("#results").innerHTML = "";
+  setStatus('<span class="spin"></span>裁切中，大视频可能需要一两分钟…');
+  try {
+    const cfg = { monitors: collectMonitors(), mode,
+                  dynamic: $("#optDynamic").checked, static: $("#optStatic").checked,
+                  ...extraCfg };
+    if (srcPath) cfg.src_path = srcPath;
+    const outDir = $("#outDirInput").value.trim();
+    if (outDir) cfg.out_dir = outDir;
+    let r;
+    if (endpoint === "/api/record_process") {
+      r = await fetch(endpoint, { method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg) });
+    } else if (srcPath) {
+      r = await fetch(endpoint, { method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg) });
+    } else {
+      r = await fetch(endpoint + "?filename=" + encodeURIComponent(srcFile.name), {
+        method: "POST",
+        headers: { "X-Config": JSON.stringify(cfg), "Content-Type": "application/octet-stream" },
+        body: srcFile });
+    }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    showResults(d);
+  } catch (e) { setStatus("失败: " + e.message, "err"); }
+  updateGo();
+}
+$("#go").onclick = () => runCrop({});
+
+function showResults(d) {
+  setStatus(`完成。源素材 ${d.src.w}×${d.src.h}（${d.kind === "image" ? "静态图" : "动图"}），裁切密度 ${d.density_px_per_cm} px/cm。产出在：<b>${d.out_dir}</b>`, "ok");
+  $("#results").innerHTML = '<div class="result">' +
+    `<div style="margin-bottom:10px"><button class="ghost" id="openDir">📁 打开产出文件夹</button></div>` +
+    d.outputs.map(o => {
+      const tag = o.kind === "dynamic" ? '<span class="tag dyn">动态</span>' : '<span class="tag sta">静态</span>';
+      const prev = o.kind === "dynamic"
+        ? `<video src="${o.url}" autoplay loop muted></video>`
+        : `<img src="${o.url}">`;
+      return `<div class="item"><div class="head"><span>${o.label}${tag}</span>
+        <a href="${o.url}" download="${o.path.split(/[\\/]/).pop()}">下载</a></div>${prev}</div>`;
+    }).join("") + "</div>";
+  $("#openDir").onclick = async () => {
+    const r = await fetch("/api/open", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({path: d.out_dir}) });
+    const j = await r.json();
+    if (!j.ok) setStatus(j.error, "err");
+  };
+}
+
+/* ---------------- 更新检查 ---------------- */
+function openUrl(u) {
+  fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({ path: u }) });
+}
+async function checkUpdate(manual) {
+  try {
+    const u = await (await fetch("/api/check_update")).json();
+    if (u.ok && u.has_update) {
+      $("#updVer").textContent = u.latest;
+      $("#updLink").onclick = e => { e.preventDefault(); openUrl(u.url); };
+      $("#updBanner").style.display = "block";
+      if (manual) setStatus(`发现新版本 v${u.latest}`, "warn");
+    } else if (manual) {
+      setStatus(u.ok ? `已是最新版本（v${u.current}）` : "检查更新失败：网络不可达或 GitHub 无法访问", u.ok ? "ok" : "err");
+    }
+  } catch (e) {
+    if (manual) setStatus("检查更新失败：网络不可达", "err");
+  }
+}
+$("#verInfo").onclick = () => checkUpdate(true);
+(async () => {
+  try {
+    const v = await (await fetch("/api/version")).json();
+    $("#verInfo").textContent = "v" + v.version;
+    if (v.update_ready) checkUpdate(false);   // 静默检查，失败不打扰
+  } catch (e) { /* 忽略 */ }
+})();
+
+/* ---------------- 启动 ---------------- */
+(async () => {
+  refreshProfiles().then(d => {
+    if (d.last_used) $("#profSelect").value = d.last_used;
+  });
+  await detect(true);
+  const d = await (await fetch("/api/config")).json();
+  if (d.last_used) {
+    const prof = d.profiles.find(p => p.id === d.last_used);
+    if (prof) {
+      let matched = 0;
+      for (const pm of prof.monitors) {
+        const m = monitors.find(mm => mm.width === pm.width && mm.height === pm.height && mm.x === pm.x && mm.y === pm.y);
+        if (m) { m.diag = pm.diag; m.shift_cm = pm.shift_cm || 0; matched++; }
+      }
+      if (matched === monitors.length) {
+        renderCanvas();
+        currentProfileId = d.last_used;
+        setStatus(`已自动载入上次配置「${prof.name}」（全部显示器匹配），可直接进入下一步`, "ok");
+        $("#profSelect").value = d.last_used;
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>
