@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('web', 'web')]
+datas = [('web', 'web'), ('assets', 'assets')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('imageio_ffmpeg')
@@ -44,4 +44,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets\\multispan.ico',
 )

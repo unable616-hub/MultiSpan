@@ -72,6 +72,12 @@ def set_dpi_early():
             pass
 
 
+def icon_path():
+    """窗口/托盘图标：冻结环境取解包目录，开发环境取源码目录。"""
+    p = os.path.join(resource_base(), "assets", "multispan.ico")
+    return p if os.path.isfile(p) else None
+
+
 def main():
     setup_logging()
     set_dpi_early()
@@ -83,7 +89,7 @@ def main():
     import webview
     webview.create_window("MultiSpan", url, width=1060, height=860,
                           min_size=(860, 640))
-    webview.start()
+    webview.start(icon=icon_path())
 
 
 if __name__ == "__main__":
