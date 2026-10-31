@@ -19,7 +19,10 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt5', 'PySide2', 'PySide6', 'tkinter',
+              'webview.platforms.qt', 'webview.platforms.gtk',
+              'webview.platforms.cocoa', 'webview.platforms.android',
+              'webview.platforms.wx', 'webview.platforms.efl'],
     noarchive=False,
     optimize=0,
 )
