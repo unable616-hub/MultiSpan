@@ -16,7 +16,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 os.makedirs(UP_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------- version / update check
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
  # 仓库地址——更新检查与跳转下载
 UPDATE_API = "https://api.github.com/repos/unable616-hub/MultiSpan/releases/latest"
 RELEASE_PAGE = "https://github.com/unable616-hub/MultiSpan/releases/latest"
@@ -380,6 +380,17 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("[http]", fmt % args)
 
+    def _same_origin(self):
+        """写操作防跨站触发：浏览器里任何网页都能向 127.0.0.1 发 no-cors POST，
+        Host/Origin 校验是唯一可靠闸门（浏览器不允许伪造这两个头）。"""
+        host = self.headers.get("Host", "")
+        if host not in ("127.0.0.1:8765", "localhost:8765"):
+            return False
+        origin = self.headers.get("Origin")
+        if origin and origin not in ("http://127.0.0.1:8765", "http://localhost:8765"):
+            return False
+        return True
+
     def _send(self, code, body, ctype="application/json; charset=utf-8"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -388,6 +399,47 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_file(self, fp, ctype):
+        """流式发送 + Range 支持：大视频不占内存，浏览器才能拖进度条。"""
+        size = os.path.getsize(fp)
+        start, end, code = 0, size - 1, 200
+        rng = self.headers.get("Range")
+        if rng and rng.startswith("bytes="):
+            try:
+                s, e = rng[6:].split("-", 1)
+                start = int(s) if s else 0
+                end = int(e) if e else size - 1
+                end = min(end, size - 1)
+                if start > end or start >= size:
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % size)
+                    self.end_headers()
+                    return
+                code = 206
+            except Exception:
+                start, end, code = 0, size - 1, 200
+        length = end - start + 1
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        if code == 206:
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            with open(fp, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(1 << 20, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+        except Exception:
+            pass    # 客户端中断（拖进度条/关页面）是常态，不是错误
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -411,8 +463,7 @@ class Handler(BaseHTTPRequestHandler):
             ext = os.path.splitext(name)[1].lower()
             ctype = {".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif",
                      ".mp4": "video/mp4", ".webm": "video/webm"}.get(ext, "application/octet-stream")
-            with open(fp, "rb") as f:
-                self._send(200, f.read(), ctype)
+            self._send_file(fp, ctype)
         else:
             self._send(404, {"error": "not found"})
 
@@ -423,6 +474,9 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_POST(self):
+        if not self._same_origin():
+            self._send(403, {"ok": False, "error": "forbidden (bad origin)"})
+            return
         path = urlparse(self.path).path
         if path == "/api/config":
             try:
@@ -528,6 +582,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _process_common(self, cfg, src):
         try:
+            # WE 私有格式给明确引导，而不是让 ffmpeg 报一条天书
+            ext = os.path.splitext(src)[1].lower()
+            if ext == ".pkg":
+                raise ValueError("这是 Wallpaper Engine 私有 .pkg 壁纸，无法直接裁切。"
+                                 "请改用「录屏」模式：让该壁纸在目标屏幕播放，录一段后再处理。")
+            if ext in (".html", ".htm"):
+                raise ValueError("这是 Wallpaper Engine 网页壁纸，无法直接裁切。"
+                                 "请改用「录屏」模式：让该壁纸在目标屏幕播放，录一段后再处理。")
             monitors = cfg["monitors"]          # [{width,height,diag,x,y,shift_cm}]
             mode = cfg.get("mode", "cover")
             want_dynamic = bool(cfg.get("dynamic", True))

@@ -453,6 +453,9 @@ $("#recDurSeg").querySelectorAll("button").forEach(b => b.onclick = () => {
   b.classList.add("on");
 });
 $("#recBtn").onclick = async () => {
+  // 录出来的就是 mp4 视频，动态裁切必然可用——覆盖 pkg 场景下被禁用的勾选状态
+  $("#optDynamic").disabled = false;
+  $("#optDynamic").checked = true;
   $("#recBtn").disabled = true;
   let prep = 3;
   setStatus(`<span class="spin"></span>${prep} 秒后开始录制——请确认该屏幕正在播放壁纸，鼠标不要动…`);

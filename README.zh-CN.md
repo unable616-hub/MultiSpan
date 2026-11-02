@@ -6,7 +6,7 @@
 
 双 4K + 1080P 混搭、27 寸 + 24.5 寸混搭……Windows 自带的"跨屏拉伸"只会把图按像素硬拉开，物理尺寸不一样的屏幕接缝永远对不上。MultiSpan 按每台显示器的**物理尺寸**计算等比裁切窗口，让画面跨屏时比例一致、屋檐和文字严丝合缝。
 
-![screenshot](docs/screenshot.png)
+![接缝对比：Windows 拉伸 vs MultiSpan 等比裁切](docs/seam-comparison.png)
 
 ## 功能
 

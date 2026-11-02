@@ -6,6 +6,8 @@
 
 Running one image across a 4K + 1080P dual-monitor setup? Windows' built-in "Span" just stretches pixels, and because the monitors have different pixel densities, the image never lines up at the seam. MultiSpan reads the **physical size** of each monitor (via EDID) and computes an equal-scale crop window per screen, so the picture stays geometrically continuous across displays.
 
+![Seam comparison: Windows stretch vs MultiSpan equal-scale crop](docs/seam-comparison.png)
+
 ## Features
 
 - **Two-step wizard**: auto-detects all monitors (resolution / physical size / arrangement), visual layout boxes with editable dimensions, **drag-to-adjust** alignment, double-click to reset
